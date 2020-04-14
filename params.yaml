@@ -9,5 +9,6 @@ parameters:
   image_name : cirros-0.5.1
   volume_size: 10
   flavor_name : tiny
+  secgrp_name : default-seg
   server_name : heat01
   zone_server : nova
