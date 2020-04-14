@@ -114,7 +114,6 @@ resources:
       name: { get_param: server_name }
       flavor: { get_param: flavor_name }
       key_name:  { get_resource: demo_key }
-      security_groups: { get_param: secgrp_name }
       availability_zone: { get_param: zone_server }
       block_device_mapping:
         - volume_id: { get_resource: server_volume }
@@ -127,6 +126,7 @@ resources:
     type: OS::Neutron::Port
     properties:
       network_id: { get_resource: demo_net }
+      security_groups: [ get_param: secgrp_name ]
       fixed_ips:
         - subnet_id: { get_resource: demo_subnet }
 
