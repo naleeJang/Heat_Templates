@@ -1,0 +1,137 @@
+heat_template_version: 2018-03-02
+
+description: Create new Tenant network and add a subnet to the network. Create  2 VMs and place the VMs in 2 unique compute nodes. Ensure each VM has a floating IP. User that runs this MUST be in the openstack admin role
+  
+parameters:
+  net_name:
+    type: string
+    label: Network Name
+    description: tenant net name
+    default: demo_net
+  net_cidr:
+    type: string
+    label: Network CIDR
+    description: CIDR for network
+    default: 10.10.10.0/24
+  net_gateway:
+    type: string
+    label: Network Gateway
+    description: gateway for network
+    default: 10.10.10.1
+  net_pool_start:
+    type: string
+    label: Network Pool Start IP
+    description: network pool start. typically .10 of whatever /24 is defined
+    default: 10.10.10.10
+  net_pool_end:
+    type: string
+    label: Network Pool End IP
+    description: network pool end. typically .100 of whatever /24 is defined
+    default: 10.10.10.100
+  ext_net_name:
+    type: string
+    label: External Network Name
+    description: external net name. use neutron net-list to figure it out.
+    default: ext_net
+  key_name:
+    type: string
+    label: SSH Key Name
+    description: ssh key required for server creation
+    default: demo_key
+  image_name:
+    type: string
+    label: Image Name
+    description: image to use to for the server
+    default: rhel-server-7.7
+  volume_size:
+    type: string
+    label: Volume Size
+    description: the size of the volume in GB.
+    default: 10
+  flavor_name:
+    type: string
+    label: Flavor Name
+    description: openstack server flavor name use openstack flavor list to see options
+    default: small
+  secgrp_name:
+    type: string
+    label: Security Group Name
+    description: list of security group names or ids.
+    default: default-seg
+  server_name:
+    type: string
+    label: Server Name
+    description: name of the server created.
+    default: demo_vm
+  zone_server:
+    type: string
+    label: Availability Zone
+    description: name of availability zone to put server VM in
+    default: nova    
+
+resources:
+  demo_net:
+    type: OS::Neutron::Net
+    properties:
+      name: { get_param: net_name }
+
+  demo_subnet:
+    type: OS::Neutron::Subnet
+    properties:
+      network_id: { get_resource: demo_net }
+      cidr: { get_param: net_cidr }
+      gateway_ip: { get_param: net_gateway }
+      allocation_pools:
+        - start: { get_param: net_pool_start }
+          end: { get_param: net_pool_end }
+
+  demo_router:
+    type: OS::Neutron::Router
+    properties:
+      external_gateway_info:
+        network: { get_param: ext_net_name }
+
+  router_interface:
+    type: OS::Neutron::RouterInterface
+    properties:
+      router_id: { get_resource: demo_router }
+      subnet_id: { get_resource: demo_subnet }
+
+  demo_key:
+    type: OS::Nova::KeyPair
+    properties:
+      name: { get_param: key_name }
+
+  server_volume:
+    type: OS::Cinder::Volume
+    properties:
+      image: { get_param: image_name }
+      size: { get_param: volume_size }
+
+  server:
+    type: OS::Nova::Server
+    properties:
+      name: { get_param: server_name }
+      flavor: { get_param: flavor_name }
+      key_name:  { get_resource: demo_key }
+      security_groups: { get_param: secgrp_name }
+      availability_zone: { get_param: zone_server }
+      block_device_mapping:
+        - volume_id: { get_resource: server_volume }
+          device_name: vda
+          delete_on_termination: false
+      networks:
+        - port: { get_resource: server_port }
+
+  server_port:
+    type: OS::Neutron::Port
+    properties:
+      network_id: { get_resource: demo_net }
+      fixed_ips:
+        - subnet_id: { get_resource: demo_subnet }
+
+  server_floating_ip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network: { get_param: ext_net_name }
+      port_id: { get_resource: server_port }
